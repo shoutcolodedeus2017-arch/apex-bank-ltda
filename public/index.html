@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ApexBank Digital — Simulador Bancário Completo (Cliente & Agência)</title>
+  <meta name="description" content="Simulador bancário interativo do ApexBank: internet banking do cliente, portal da agência, INSS, BPC, aposentadoria, negativados, legislação e muito mais.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/assets/tailwind-config.js"></script>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    .grid-bg { background-image: linear-gradient(rgba(16,185,129,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,.06) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(ellipse at 60% 30%, black 20%, transparent 70%); }
+    .float { animation: float 7s ease-in-out infinite; }
+    @keyframes float { 0%,100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-14px) rotate(-4deg); } }
+    .reveal { opacity: 0; transform: translateY(16px); transition: all .6s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col">
+
+  <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20">
+          <i data-lucide="shield-check"></i>
+        </div>
+        <div>
+          <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">ApexBank</span>
+          <span class="hidden sm:inline-block text-xs text-slate-400 ml-2 px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700">Mobile & Web v3.2</span>
+        </div>
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-300">
+        <a href="#produtos" class="hover:text-emerald-400 transition">Produtos</a>
+        <a href="#previdencia" class="hover:text-emerald-400 transition">INSS & BPC</a>
+        <a href="#recomecar" class="hover:text-emerald-400 transition">Limpa Nome</a>
+        <a href="/institucional.html" class="hover:text-emerald-400 transition">Institucional</a>
+        <a href="/institucional.html#legislacao" class="hover:text-emerald-400 transition">Legislação</a>
+      </nav>
+      <div class="flex items-center gap-2">
+        <button onclick="Apex.toggleTheme()" class="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition" title="Alternar tema"><i data-lucide="moon" data-theme-icon class="w-5 h-5"></i></button>
+        <a href="/agencia.html" class="hidden sm:inline-flex btn-ghost"><i data-lucide="building-2" class="w-4 h-4"></i> Agência</a>
+        <a href="/cliente.html" class="btn-primary"><i data-lucide="lock" class="w-4 h-4"></i> Acessar conta</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1">
+    <!-- HERO -->
+    <section class="relative overflow-hidden">
+      <div class="absolute inset-0 grid-bg pointer-events-none"></div>
+      <div class="absolute -top-40 -right-40 w-[32rem] h-[32rem] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute top-60 -left-40 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 lg:pt-24 grid lg:grid-cols-12 gap-12 items-center">
+        <div class="lg:col-span-7 fade-in">
+          <span class="chip bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 mb-5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Simulador bancário interativo • desde 1987</span>
+          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05] text-white">
+            O banco inteiro,<br>
+            <span class="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 bg-clip-text text-transparent">do caixa à diretoria.</span>
+          </h1>
+          <p class="mt-6 text-base sm:text-lg text-slate-400 max-w-xl leading-relaxed">
+            Viva a experiência completa do ApexBank: o internet banking do cliente com Pix, cartões, crédito, investimentos, INSS e Limpa Nome — e o portal interno da agência, com todos os setores, do jovem aprendiz à presidência.
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row gap-3">
+            <a href="/cliente.html" class="btn-primary !text-sm !px-6 !py-3.5"><i data-lucide="smartphone" class="w-4 h-4"></i> Sou cliente</a>
+            <a href="/agencia.html" class="btn-ghost !text-sm !px-6 !py-3.5"><i data-lucide="badge-check" class="w-4 h-4 text-amber-400"></i> Sou colaborador(a)</a>
+          </div>
+          <div class="mt-10 grid grid-cols-3 gap-4 max-w-lg" id="heroStats"></div>
+        </div>
+
+        <!-- Hero visual: card + phone summary -->
+        <div class="lg:col-span-5 relative h-[420px] hidden sm:block">
+          <div class="absolute right-0 top-4 w-80 glass rounded-3xl p-5 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-[11px] text-slate-400">Saldo disponível</span>
+              <span class="chip bg-emerald-500/15 text-emerald-400">100% CDI</span>
+            </div>
+            <p class="text-3xl font-black text-white tracking-tight" id="heroBalance">R$ 14.850,20</p>
+            <div class="grid grid-cols-4 gap-2 mt-5">
+              <div class="flex flex-col items-center gap-1"><div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><i data-lucide="qr-code" class="w-4 h-4"></i></div><span class="text-[10px] text-slate-400">Pix</span></div>
+              <div class="flex flex-col items-center gap-1"><div class="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center"><i data-lucide="credit-card" class="w-4 h-4"></i></div><span class="text-[10px] text-slate-400">Cartão</span></div>
+              <div class="flex flex-col items-center gap-1"><div class="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center"><i data-lucide="hand-heart" class="w-4 h-4"></i></div><span class="text-[10px] text-slate-400">INSS</span></div>
+              <div class="flex flex-col items-center gap-1"><div class="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center"><i data-lucide="coins" class="w-4 h-4"></i></div><span class="text-[10px] text-slate-400">Crédito</span></div>
+            </div>
+            <div class="mt-5 space-y-2" id="heroTx"></div>
+          </div>
+          <div class="float absolute left-0 bottom-6 w-72 h-44 rounded-2xl p-5 bg-gradient-to-tr from-slate-900 via-emerald-900 to-teal-800 border border-emerald-500/30 shadow-2xl flex flex-col justify-between">
+            <div class="flex justify-between items-center"><span class="font-extrabold text-sm tracking-wider text-emerald-400">Apex Platinum</span><i data-lucide="wifi" class="w-5 h-5 text-slate-300 rotate-90"></i></div>
+            <div><div class="w-10 h-7 bg-amber-400/80 rounded-md mb-2 border border-amber-300"></div><p class="font-mono text-base tracking-widest text-white">4532 •••• •••• 8821</p></div>
+            <div class="flex justify-between text-[10px]"><span class="font-bold text-slate-200">CARLOS SILVA</span><span class="font-bold text-slate-200">10/29</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TWO PORTALS -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div class="grid md:grid-cols-2 gap-6">
+        <a href="/cliente.html" class="reveal group glass rounded-3xl p-7 border border-slate-800 hover:border-emerald-500/40 transition relative overflow-hidden">
+          <div class="absolute -right-10 -top-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition"></div>
+          <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-4"><i data-lucide="user-round"></i></div>
+          <h2 class="text-xl font-bold text-white">Internet Banking — Cliente</h2>
+          <p class="text-sm text-slate-400 mt-2 leading-relaxed">Conta corrente, Pix e TED, boletos, cartões virtuais, empréstimos e consignado, investimentos, seguros, extrato do benefício INSS, simulador de aposentadoria, BPC e renegociação de dívidas.</p>
+          <div class="flex flex-wrap gap-2 mt-5" id="clientChips"></div>
+          <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 mt-6">Entrar como cliente <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i></span>
+        </a>
+        <a href="/agencia.html" class="reveal group glass rounded-3xl p-7 border border-slate-800 hover:border-amber-500/40 transition relative overflow-hidden">
+          <div class="absolute -right-10 -top-10 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition"></div>
+          <div class="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mb-4"><i data-lucide="building-2"></i></div>
+          <h2 class="text-xl font-bold text-white">Portal Agência & Corporativo</h2>
+          <p class="text-sm text-slate-400 mt-2 leading-relaxed">Cada colaborador vê o que seu cargo permite: caixa, fila de senhas, mesa de crédito, central INSS, cobrança, compliance PLD/FT, jurídico, ouvidoria, RH, TI e a visão da diretoria.</p>
+          <div class="flex flex-wrap gap-2 mt-5" id="staffChips"></div>
+          <span class="inline-flex items-center gap-1 text-xs font-bold text-amber-400 mt-6">Entrar como colaborador <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i></span>
+        </a>
+      </div>
+    </section>
+
+    <!-- PRODUCTS -->
+    <section id="produtos" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 scroll-mt-20">
+      <div class="max-w-2xl mb-10 reveal">
+        <p class="text-xs font-bold uppercase tracking-widest text-emerald-400">Tudo o que o cliente precisa</p>
+        <h2 class="text-3xl font-extrabold text-white mt-2">Uma plataforma, todos os serviços bancários.</h2>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4" id="productGrid"></div>
+    </section>
+
+    <!-- PREVIDÊNCIA -->
+    <section id="previdencia" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 scroll-mt-20">
+      <div class="glass rounded-3xl border border-slate-800 p-8 lg:p-12 grid lg:grid-cols-2 gap-10 relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/40">
+        <div class="reveal">
+          <p class="text-xs font-bold uppercase tracking-widest text-indigo-300">INSS • Aposentadoria • BPC/LOAS</p>
+          <h2 class="text-3xl font-extrabold text-white mt-2">Feito para quem trabalhou a vida inteira.</h2>
+          <p class="text-sm text-slate-400 mt-4 leading-relaxed">Receba seu benefício no ApexBank, acompanhe o extrato, a margem consignável e a prova de vida. Simule sua aposentadoria pelas regras da EC 103/2019 e descubra se sua família tem direito ao BPC.</p>
+          <ul class="mt-6 space-y-3 text-sm text-slate-300">
+            <li class="flex gap-3"><i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400 shrink-0"></i> Margem consignável de 45% (35% empréstimo + 5% cartão consignado + 5% cartão benefício)</li>
+            <li class="flex gap-3"><i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400 shrink-0"></i> Atendimento prioritário (Estatuto da Pessoa Idosa)</li>
+            <li class="flex gap-3"><i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400 shrink-0"></i> Nunca ligamos oferecendo empréstimo — proteção contra golpes</li>
+          </ul>
+          <div class="flex flex-wrap gap-3 mt-8">
+            <a href="/cliente.html" class="btn-primary">Simular aposentadoria</a>
+            <a href="/institucional.html#bpc" class="btn-ghost">Entenda o BPC/LOAS</a>
+          </div>
+        </div>
+        <!-- Mini BPC checker -->
+        <div class="reveal bg-slate-950/60 rounded-2xl border border-slate-800 p-6">
+          <h3 class="font-bold text-white flex items-center gap-2"><i data-lucide="calculator" class="w-5 h-5 text-indigo-300"></i> Teste rápido: BPC/LOAS</h3>
+          <p class="text-[11px] text-slate-500 mt-1">Simulação educativa. A concessão é feita exclusivamente pelo INSS.</p>
+          <form id="bpcForm" class="grid grid-cols-2 gap-3 mt-5">
+            <div class="col-span-2"><label class="label">Situação</label>
+              <select id="bpcTipo" class="field"><option value="idoso">Pessoa idosa (65+)</option><option value="pcd">Pessoa com deficiência</option><option value="nenhum">Nenhuma das anteriores</option></select></div>
+            <div><label class="label">Renda familiar total (R$)</label><input id="bpcRenda" type="number" min="0" step="0.01" class="field" value="1200"></div>
+            <div><label class="label">Pessoas na casa</label><input id="bpcPessoas" type="number" min="1" class="field" value="3"></div>
+            <button class="btn-primary col-span-2 !bg-indigo-400 hover:!bg-indigo-300">Verificar</button>
+          </form>
+          <div id="bpcResult" class="mt-4 text-xs"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RECOMEÇAR -->
+    <section id="recomecar" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 scroll-mt-20">
+      <div class="grid lg:grid-cols-5 gap-8 items-center">
+        <div class="lg:col-span-2 reveal">
+          <p class="text-xs font-bold uppercase tracking-widest text-rose-300">Programa Recomeçar</p>
+          <h2 class="text-3xl font-extrabold text-white mt-2">Nome negativado? A gente ajuda a recomeçar.</h2>
+          <p class="text-sm text-slate-400 mt-4 leading-relaxed">Consulte restrições no Serasa, SPC e Boa Vista, negocie com até 85% de desconto e tenha o nome limpo em até 5 dias úteis após o pagamento (Súmula 548 do STJ). Superendividado? Peça a repactuação pela Lei 14.181/2021.</p>
+          <div class="flex gap-3 mt-6">
+            <a href="/cliente.html" class="btn-primary">Consultar meu CPF</a>
+            <a href="/institucional.html#negativados" class="btn-ghost">Conheça seus direitos</a>
+          </div>
+        </div>
+        <div class="lg:col-span-3 grid sm:grid-cols-3 gap-4" id="rightsGrid"></div>
+      </div>
+    </section>
+
+    <!-- HISTORY TEASER -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div class="flex items-end justify-between mb-8 reveal">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest text-emerald-400">Nossa história</p>
+          <h2 class="text-3xl font-extrabold text-white mt-2">De cooperativa de metalúrgicos a banco digital.</h2>
+        </div>
+        <a href="/institucional.html#historia" class="hidden sm:inline-flex text-xs font-bold text-emerald-400 items-center gap-1">Linha do tempo completa <i data-lucide="arrow-right" class="w-4 h-4"></i></a>
+      </div>
+      <div class="flex gap-4 overflow-x-auto pb-4 snap-x" id="historyStrip"></div>
+    </section>
+
+    <!-- INDICATORS + LINKS -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div class="grid lg:grid-cols-3 gap-6">
+        <div class="glass rounded-3xl p-6 border border-slate-800 lg:col-span-2 reveal">
+          <h3 class="font-bold text-white text-sm mb-4 flex items-center gap-2"><i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i> Solidez em números <span class="text-[10px] text-slate-500 font-normal">(dados fictícios)</span></h3>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="indicators"></div>
+        </div>
+        <div class="glass rounded-3xl p-6 border border-slate-800 reveal">
+          <h3 class="font-bold text-white text-sm mb-4 flex items-center gap-2"><i data-lucide="scale" class="w-4 h-4 text-emerald-400"></i> Transparência</h3>
+          <ul class="space-y-2 text-xs">
+            <li><a class="flex justify-between text-slate-300 hover:text-emerald-400" href="/institucional.html#estatuto">Estatuto Social <i data-lucide="chevron-right" class="w-4 h-4"></i></a></li>
+            <li><a class="flex justify-between text-slate-300 hover:text-emerald-400" href="/institucional.html#legislacao">Legislação & Normas <i data-lucide="chevron-right" class="w-4 h-4"></i></a></li>
+            <li><a class="flex justify-between text-slate-300 hover:text-emerald-400" href="/institucional.html#juridico">Jurídico, LGPD & Privacidade <i data-lucide="chevron-right" class="w-4 h-4"></i></a></li>
+            <li><a class="flex justify-between text-slate-300 hover:text-emerald-400" href="/institucional.html#governanca">Governança & Setores <i data-lucide="chevron-right" class="w-4 h-4"></i></a></li>
+            <li><a class="flex justify-between text-slate-300 hover:text-emerald-400" href="/institucional.html#consumidor">Direitos do Consumidor & Tarifas <i data-lucide="chevron-right" class="w-4 h-4"></i></a></li>
+            <li><a class="flex justify-between text-slate-300 hover:text-emerald-400" href="/institucional.html#ouvidoria">Ouvidoria & SAC <i data-lucide="chevron-right" class="w-4 h-4"></i></a></li>
+            <li><a class="flex justify-between text-slate-300 hover:text-emerald-400" href="/institucional.html#carreiras">Trabalhe Conosco <i data-lucide="chevron-right" class="w-4 h-4"></i></a></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-slate-900/60 border-t border-slate-800/80 py-8 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 grid sm:grid-cols-3 gap-6 text-xs text-slate-500" id="footer"></div>
+    <p class="max-w-7xl mx-auto px-4 mt-6 text-center text-[11px] text-slate-600">ApexBank Financial Systems &copy; 2026 — Certificado de Segurança ISO/IEC 27001. Ambiente de simulação: instituição fictícia, nenhuma operação real é realizada.</p>
+  </footer>
+
+  <script src="/assets/fixtures.js"></script>
+  <script src="/assets/common.js"></script>
+  <script>
+    const D = window.ApexData;
+    const { brl, pct } = Apex;
+    const fmtInt = (n) => n.toLocaleString('pt-BR');
+
+    // Hero stats & mini statement
+    document.getElementById('heroStats').innerHTML = [
+      [fmtInt(D.bank.clientes / 1e6) + ' mi', 'clientes'], [D.bank.agencias, 'agências'], [fmtInt(D.bank.colaboradores), 'colaboradores'],
+    ].map(([v, l]) => `<div><p class="text-2xl font-black text-white">${v}</p><p class="text-[11px] text-slate-500">${l}</p></div>`).join('');
+    document.getElementById('heroBalance').textContent = brl(D.cliente.saldo);
+    document.getElementById('heroTx').innerHTML = D.transacoes.slice(0, 3).map((t) => `
+      <div class="flex justify-between items-center p-2 rounded-xl bg-slate-900/60 text-[11px]">
+        <span class="text-slate-300 truncate pr-2">${t.desc}</span>
+        <span class="font-bold ${t.isCredit ? 'text-emerald-400' : 'text-slate-300'} whitespace-nowrap">${t.isCredit ? '+' : '-'} ${brl(t.amount)}</span>
+      </div>`).join('');
+
+    const chip = (t, c) => `<span class="chip bg-${c}-500/10 text-${c}-300 border border-${c}-500/20">${t}</span>`;
+    document.getElementById('clientChips').innerHTML = ['Pix & MED', 'Cartões', 'Consignado', 'Investimentos', 'INSS', 'BPC', 'Limpa Nome', 'Open Finance'].map((t) => chip(t, 'emerald')).join('');
+    const staffRoles = [...new Set(D.funcionarios.map((f) => f.cargo))];
+    document.getElementById('staffChips').innerHTML = staffRoles.slice(0, 9).map((t) => chip(t, 'amber')).join('') + chip(`+${staffRoles.length - 9} cargos`, 'amber');
+
+    // Products
+    const products = [
+      ['zap', 'Pix, TED & Boletos', 'Chaves, Copia e Cola, QR de cobrança, agendamentos, DDA e reembolso MED.', 'emerald'],
+      ['credit-card', 'Cartões Virtuais', 'Crédito, débito e cartão benefício INSS. Bloqueio, CVV temporário e limite.', 'blue'],
+      ['coins', 'Crédito & Consignado', 'Pessoal, consignado INSS/CLT, FGTS, imobiliário e veículos com CET transparente.', 'purple'],
+      ['trending-up', 'Investimentos', 'CDB, LCI/LCA, Tesouro, fundos e previdência PGBL/VGBL com suitability.', 'teal'],
+      ['hand-heart', 'INSS & Aposentadoria', 'Extrato do benefício, margem consignável, prova de vida e simulador.', 'indigo'],
+      ['badge-percent', 'Limpa Nome', 'Consulte restrições e renegocie com descontos no Programa Recomeçar.', 'rose'],
+      ['umbrella', 'Seguros & Proteção', 'Vida, residencial, Proteção Pix e assistência funeral.', 'amber'],
+      ['link', 'Open Finance', 'Conecte outras instituições com consentimento e controle total.', 'sky'],
+    ];
+    document.getElementById('productGrid').innerHTML = products.map(([i, t, d, c]) => `
+      <a href="/cliente.html" class="reveal glass rounded-2xl p-5 border border-slate-800 hover:border-${c}-500/40 hover:-translate-y-1 transition block">
+        <div class="w-10 h-10 rounded-xl bg-${c}-500/15 text-${c}-400 flex items-center justify-center mb-3"><i data-lucide="${i}" class="w-5 h-5"></i></div>
+        <h3 class="font-bold text-white text-sm">${t}</h3>
+        <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">${d}</p>
+      </a>`).join('');
+
+    // Rights
+    const rights = [
+      ['bell-ring', 'Aviso prévio', 'Você deve ser notificado antes da negativação (CDC, art. 43, §2º).'],
+      ['calendar-clock', 'Máximo de 5 anos', 'Nenhuma restrição pode ficar mais de 5 anos no cadastro (art. 43, §1º).'],
+      ['shield-check', 'Mínimo existencial', 'A Lei 14.181/2021 protege uma parte da sua renda na renegociação.'],
+    ];
+    document.getElementById('rightsGrid').innerHTML = rights.map(([i, t, d]) => `
+      <div class="reveal glass rounded-2xl p-5 border border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-300 flex items-center justify-center mb-3"><i data-lucide="${i}" class="w-5 h-5"></i></div>
+        <h3 class="font-bold text-white text-sm">${t}</h3><p class="text-xs text-slate-400 mt-1.5 leading-relaxed">${d}</p>
+      </div>`).join('');
+
+    // History strip
+    document.getElementById('historyStrip').innerHTML = D.historia.map((h) => `
+      <div class="snap-start shrink-0 w-64 glass rounded-2xl p-5 border border-slate-800">
+        <p class="text-3xl font-black bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">${h.ano}</p>
+        <h3 class="font-bold text-white text-sm mt-2">${h.titulo}</h3>
+        <p class="text-xs text-slate-400 mt-1.5 leading-relaxed line-clamp-4">${h.texto}</p>
+      </div>`).join('');
+
+    // Indicators
+    const I = D.indicadores;
+    document.getElementById('indicators').innerHTML = [
+      ['Índice de Basileia', pct(I.basileia * 100, 1)], ['ROE', pct(I.roe * 100, 1)],
+      ['Inadimplência 90d', pct(I.inadimplencia90 * 100, 1)], ['Lucro no trimestre', 'R$ ' + (I.lucroTri / 1e9).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' bi'],
+      ['Selic', pct(I.selic * 100)], ['CDI', pct(I.cdi * 100)], ['IPCA 12m', pct(I.ipca12m * 100)], ['Dólar', brl(I.dolar)],
+    ].map(([l, v]) => `<div class="p-3 rounded-2xl bg-slate-900/70 border border-slate-800"><p class="text-[10px] text-slate-500 uppercase">${l}</p><p class="text-lg font-bold text-white mt-1">${v}</p></div>`).join('');
+
+    // Footer
+    const B = D.bank;
+    document.getElementById('footer').innerHTML = `
+      <div><p class="font-bold text-slate-300 mb-2">${B.nome}</p><p>CNPJ ${B.cnpj}</p><p>Banco ${B.codigoCompe} • ISPB ${B.ispb}</p><p>${B.sede}</p></div>
+      <div><p class="font-bold text-slate-300 mb-2">Atendimento</p><p>SAC 24h: ${B.sac}</p><p>Ouvidoria: ${B.ouvidoria}</p><p>Deficiência auditiva: ${B.deficienciaAuditiva}</p></div>
+      <div><p class="font-bold text-slate-300 mb-2">Garantias</p><p>Instituição associada ao FGC — até R$ 250 mil por CPF.</p><p>Regulado pelo Banco Central do Brasil (simulação).</p></div>`;
+
+    // BPC quick check
+    document.getElementById('bpcForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const tipo = document.getElementById('bpcTipo').value;
+      const renda = parseFloat(document.getElementById('bpcRenda').value) || 0;
+      const pessoas = Math.max(1, parseInt(document.getElementById('bpcPessoas').value) || 1);
+      const sm = D.regrasAposentadoria.salarioMinimo2026;
+      const perCapita = renda / pessoas, limite = sm / 4;
+      const ok = tipo !== 'nenhum' && perCapita <= limite;
+      document.getElementById('bpcResult').innerHTML = `
+        <div class="p-4 rounded-xl border ${ok ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' : 'border-amber-500/40 bg-amber-500/10 text-amber-200'} fade-in">
+          <p class="font-bold">${ok ? 'Possível direito ao BPC' : 'Pelos dados informados, os critérios não são atendidos'}</p>
+          <p class="mt-1 opacity-80">Renda por pessoa: ${brl(perCapita)} • Limite (1/4 do salário mínimo simulado): ${brl(limite)}</p>
+          ${tipo === 'nenhum' ? '<p class="mt-1 opacity-80">O BPC é destinado a pessoas idosas (65+) ou com deficiência.</p>' : ''}
+          <p class="mt-2 opacity-80">Próximo passo: atualizar o CadÚnico no CRAS e solicitar pelo Meu INSS ou telefone 135.</p>
+        </div>`;
+    });
+
+    // Reveal on scroll
+    Apex.icons();
+    const io = new IntersectionObserver((entries) => entries.forEach((en) => en.isIntersecting && en.target.classList.add('in')), { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+  </script>
+</body>
+</html>

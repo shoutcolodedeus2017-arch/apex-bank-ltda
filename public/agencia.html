@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Agência & Corporativo — ApexBank</title>
+  <meta name="robots" content="noindex, nofollow">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/assets/tailwind-config.js"></script>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .btn-sm { padding: .35rem .65rem !important; font-size: 11px !important; border-radius: .6rem !important; }
+    .btn-primary:disabled, .btn-ghost:disabled, .btn-danger:disabled { opacity: .4; cursor: not-allowed; }
+    .tbl td { padding: .6rem .5rem; white-space: nowrap; vertical-align: middle; }
+    .tbl tbody tr { transition: background .15s; }
+    .scroll-x { scrollbar-width: thin; }
+    input[type=range] { accent-color: #10b981; width: 100%; }
+    input[type=checkbox], input[type=radio] { accent-color: #10b981; }
+    .org-node.me { box-shadow: 0 0 0 2px #fbbf24, 0 10px 30px -10px rgba(251, 191, 36, .5); }
+    .tier-line { width: 2px; height: 22px; margin: 0 auto; background: linear-gradient(to bottom, rgba(16,185,129,.7), rgba(51,65,85,.6)); }
+    .node-stub::before { content: ''; position: absolute; top: -10px; left: 50%; width: 2px; height: 10px; background: rgba(16,185,129,.45); }
+    .painel-senha { font-variant-numeric: tabular-nums; letter-spacing: .05em; }
+    @keyframes pulseRing { 0% { box-shadow: 0 0 0 0 rgba(251,191,36,.5); } 100% { box-shadow: 0 0 0 18px rgba(251,191,36,0); } }
+    .pulse-ring { animation: pulseRing 1.4s ease-out infinite; }
+    @keyframes scan { 0% { top: 0; } 100% { top: calc(100% - 3px); } }
+    .scan-line { position: absolute; left: 0; right: 0; height: 3px; background: #10b981; box-shadow: 0 0 12px #10b981; animation: scan 1.2s ease-in-out infinite alternate; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
+
+  <!-- Login view (rendered by JS) -->
+  <div id="loginView"></div>
+
+  <!-- Authenticated app shell -->
+  <div id="appView" class="hidden min-h-screen flex flex-col">
+    <header id="appHeader" class="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/85 backdrop-blur-xl"></header>
+    <div class="max-w-[1500px] w-full mx-auto px-3 sm:px-4 py-4 sm:py-5 flex flex-col lg:flex-row gap-4 lg:gap-5 flex-1">
+      <aside id="sidebar" class="lg:w-64 shrink-0 w-full lg:sticky lg:top-20 self-start space-y-3"></aside>
+      <main id="main" class="flex-1 min-w-0 fade-in"></main>
+    </div>
+    <div id="appFooter"></div>
+  </div>
+
+  <script src="/assets/fixtures.js"></script>
+  <script src="/assets/common.js"></script>
+  <script>
+  /* =====================================================================
+   * ApexBank — Portal Agência & Corporativo (uso interno, simulação)
+   * Single-page app: login → shell (header/sidebar) → módulos por perfil.
+   * All state lives in S (deep copy of window.ApexData); actions mutate S
+   * and re-render the current module.
+   * ===================================================================== */
+
+  // ===== 0. REFERÊNCIAS & UTILITÁRIOS ====================================
+  const D = window.ApexData, A = window.Apex;
+  const esc = A.esc, brl = A.brl;
+  const App = window.App = {};
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const pc = (v, d = 1) => A.pct(v * 100, d);
+  const num = (v) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+  const digits = (s) => String(s ?? '').replace(/\D/g, '');
+  const rnd = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+  const fmtD = (d) => d.toLocaleDateString('pt-BR');
+  const fmtDT = (d = new Date()) => d.toLocaleString('pt-BR');
+  const hhmm = (d = new Date()) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const parseBR = (s) => { const [d, m, y] = String(s).split('/').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
+  const daysBetween = (a, b) => Math.floor((b - a) / 86400000);
+  const addBiz = (from, n) => { const d = new Date(from); let k = 0; while (k < n) { d.setDate(d.getDate() + 1); if (d.getDay() % 6 !== 0) k++; } return d; };
+  const brlK = (v) => v >= 1e9 ? `R$ ${(v / 1e9).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} bi` : v >= 1e6 ? `R$ ${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi` : brl(v);
+  const nfmt = (v) => Number(v).toLocaleString('pt-BR');
+  const val = (w, n) => (w.querySelector(`[name="${n}"]`)?.value ?? '').trim();
+  const chk = (w, n) => !!w.querySelector(`[name="${n}"]`)?.checked;
+  const closeModals = () => $$('body > .fixed.inset-0.z-50').forEach((e) => e.remove());
+  const sectorOf = (id) => D.setores.find((s) => s.id === id);
+  const cnps = D.produtosCredito.find((p) => p.id === 'consignado-inss');
+
+  // ===== 1. CATÁLOGOS (módulos, perfis, tons) ============================
+  const MODS = {
+    visao: { label: 'Visão Geral', icon: 'layout-dashboard' },
+    organograma: { label: 'Organograma', icon: 'network' },
+    agencias: { label: 'Rede de Agências', icon: 'store' },
+    clientes: { label: 'Carteira / CRM', icon: 'contact' },
+    credito: { label: 'Mesa de Crédito', icon: 'coins' },
+    caixa: { label: 'Terminal do Caixa', icon: 'banknote' },
+    senhas: { label: 'Fila de Atendimento', icon: 'ticket' },
+    inss: { label: 'Central INSS', icon: 'hand-heart' },
+    cobranca: { label: 'Cobrança', icon: 'receipt' },
+    compliance: { label: 'PLD/FT & Compliance', icon: 'shield-alert' },
+    juridico: { label: 'Jurídico', icon: 'gavel' },
+    ouvidoria: { label: 'Ouvidoria & SAC', icon: 'megaphone' },
+    rh: { label: 'Pessoas (RH)', icon: 'heart-handshake' },
+    ti: { label: 'Tecnologia & Segurança', icon: 'server' },
+  };
+
+  const PERFIS = {
+    diretoria: { label: 'Diretoria Executiva', tone: 'amber' },
+    superintendente: { label: 'Superintendência', tone: 'amber' },
+    gerente_geral: { label: 'Gerente Geral', tone: 'indigo' },
+    gerente_contas: { label: 'Gerente de Contas', tone: 'indigo' },
+    gerente_inss: { label: 'Gerente INSS', tone: 'indigo' },
+    caixa: { label: 'Caixa Executivo', tone: 'emerald' },
+    atendimento: { label: 'Atendimento', tone: 'emerald' },
+    juridico: { label: 'Jurídico', tone: 'sky' },
+    compliance: { label: 'Compliance', tone: 'rose' },
+    cobranca: { label: 'Cobrança', tone: 'sky' },
+    ti: { label: 'TI / SOC', tone: 'sky' },
+    ouvidoria: { label: 'Ouvidoria', tone: 'violet' },
+    rh: { label: 'Pessoas', tone: 'violet' },
+    aprendiz: { label: 'Jovem Aprendiz', tone: 'slate' },
+  };
+
+  // Alçadas de crédito por perfil (R$)
+  const ALCADA = { gerente_contas: 50000, gerente_inss: 50000, gerente_geral: 200000, superintendente: Infinity, diretoria: Infinity };
+
+  const TONES = {
+    emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+    amber: 'bg-amber-400/10 text-amber-300 border-amber-400/30',
+    rose: 'bg-rose-500/10 text-rose-300 border-rose-500/30',
+    indigo: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30',
+    sky: 'bg-sky-500/10 text-sky-300 border-sky-500/30',
+    violet: 'bg-violet-500/10 text-violet-300 border-violet-500/30',
+    slate: 'bg-slate-700/40 text-slate-300 border-slate-600/50',
+  };
+
+  // ===== 2. COMPONENTES DE UI (strings HTML) =============================
+  const chip = (t, tone = 'slate', icon = '') => `<span class="chip border ${TONES[tone] || TONES.slate}">${icon ? `<i data-lucide="${icon}" class="w-3 h-3"></i>` : ''}${t}</span>`;
+  const riskChip = (r) => chip(esc(r), { Baixo: 'emerald', Médio: 'amber', Alto: 'rose', Crítico: 'rose' }[r] || 'slate', r === 'Crítico' ? 'flame' : '');
+  const kpi = (label, value, sub = '', icon = 'activity', tone = 'emerald') => `
+    <div class="glass rounded-2xl p-4">
+      <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-400 font-medium leading-tight">${label}</span>
+      <span class="w-8 h-8 shrink-0 rounded-xl grid place-items-center border ${TONES[tone]}"><i data-lucide="${icon}" class="w-4 h-4"></i></span></div>
+      <div class="text-xl font-extrabold text-white mt-2 tracking-tight" data-kpi="${esc(label)}">${value}</div>
+      ${sub ? `<div class="text-[11px] text-slate-400 mt-0.5">${sub}</div>` : ''}
+    </div>`;
+  const bar = (p, tone = 'emerald') => {
+    const w = Math.max(0, Math.min(100, p));
+    const c = { emerald: 'from-emerald-500 to-teal-400', amber: 'from-amber-500 to-amber-300', rose: 'from-rose-600 to-rose-400', indigo: 'from-indigo-500 to-sky-400' }[tone] || 'from-emerald-500 to-teal-400';
+    return `<div class="h-2 rounded-full bg-slate-800 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r ${c} transition-all duration-500" style="width:${w}%"></div></div>`;
+  };
+  const card = (title, icon, body, right = '', cls = '') => `
+    <section class="glass rounded-3xl p-4 sm:p-5 ${cls}">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i data-lucide="${icon}" class="w-4 h-4 text-emerald-400"></i>${title}</h3>
+        <div class="flex flex-wrap gap-2">${right}</div>
+      </div>${body}
+    </section>`;
+  const pageHead = (title, sub, right = '') => `
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-5">
+      <div>
+        <div class="flex items-center gap-2 text-[11px] text-amber-300 font-semibold uppercase tracking-wider"><i data-lucide="${MODS[S.mod].icon}" class="w-3.5 h-3.5"></i>${MODS[S.mod].label}</div>
+        <h1 class="text-2xl font-extrabold text-white tracking-tight mt-1">${title}</h1>
+        <p class="text-xs text-slate-400 mt-1 max-w-3xl">${sub}</p>
+      </div>
+      <div class="flex flex-wrap gap-2">${right}</div>
+    </div>`;
+  const table = (heads, rows, tbodyId = '') => `
+    <div class="overflow-x-auto scroll-x"><table class="tbl w-full text-xs">
+      <thead><tr class="text-left text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-800">${heads.map((h) => `<th class="py-2 px-2 font-semibold whitespace-nowrap">${h}</th>`).join('')}</tr></thead>
+      <tbody ${tbodyId ? `id="${tbodyId}"` : ''} class="divide-y divide-slate-800/70">${rows}</tbody>
+    </table></div>`;
+  const emptyRow = (cols, msg) => `<tr><td colspan="${cols}" class="!py-8 text-center text-slate-500">${msg}</td></tr>`;
+  const btn = (label, onclick, kind = 'ghost', icon = '', extra = '') => `<button type="button" class="btn-${kind} btn-sm" onclick="${onclick}" ${extra}>${icon ? `<i data-lucide="${icon}" class="w-3.5 h-3.5"></i>` : ''}${label}</button>`;
+  const fld = (label, inner, cls = '') => `<label class="block ${cls}"><span class="label">${label}</span>${inner}</label>`;
+  const inp = (name, attrs = '') => `<input name="${name}" class="field" ${attrs}>`;
+  const sel = (name, opts, cur = '', attrs = '') => `<select name="${name}" class="field" ${attrs}>${opts.map((o) => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select>`;
+  const justField = (label = 'Justificativa (obrigatória)', ph = 'Descreva o fundamento da decisão (fica registrado na trilha de auditoria)...') => fld(label, `<textarea name="just" rows="3" class="field" placeholder="${ph}"></textarea>`);
+  const note = (html, tone = 'amber', icon = 'info') => `<div class="flex gap-2 p-3 rounded-2xl border ${TONES[tone]} text-[11px] leading-relaxed"><i data-lucide="${icon}" class="w-4 h-4 shrink-0 mt-0.5"></i><div>${html}</div></div>`;
+  const tabsBar = (key, items) => `<div class="flex gap-1 p-1 rounded-2xl bg-slate-900/70 border border-slate-800 overflow-x-auto scroll-x mb-4">${items.map(([id, label, icon]) => `<button class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap ${S.ui[key] === id ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white hover:bg-slate-800'}" onclick="App.setUi('${key}','${id}')"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${label}</button>`).join('')}</div>`;
+  const avatar = (name, cls = 'w-9 h-9 text-xs') => `<div class="${cls} shrink-0 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 grid place-items-center font-extrabold text-slate-950">${esc(A.initials(name))}</div>`;
+
+  // Mandatory justification inside modal. Returns text or null (and toasts).
+  function needJust(w, min = 15, name = 'just') {
+    const t = val(w, name);
+    if (t.length < min) { A.toast(`Justificativa obrigatória (mínimo ${min} caracteres).`, 'error'); w.querySelector(`[name="${name}"]`)?.focus(); return null; }
+    return t;
+  }
+
+  // ===== 3. CHARTS & TIMERS ==============================================
+  const charts = {};
+  const timers = {};
+  if (window.Chart) {
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(148,163,184,.10)';
+    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.plugins.legend.labels.boxWidth = 10;
+  }
+  function mkChart(id, cfg) {
+    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+    const el = document.getElementById(id);
+    if (!el || !window.Chart || el.offsetParent === null) return null; // only when visible
+    charts[id] = new Chart(el, cfg);
+    return charts[id];
+  }
+  function destroyCharts() { Object.keys(charts).forEach((k) => { charts[k].destroy(); delete charts[k]; }); }
+  function setTimer(name, fn, ms) { if (!timers[name]) timers[name] = setInterval(fn, ms); }
+  function clearTimers() { Object.keys(timers).forEach((k) => { clearInterval(timers[k]); delete timers[k]; }); }
+  const PALETTE = ['#10b981', '#fbbf24', '#818cf8', '#38bdf8', '#f43f5e', '#a78bfa', '#2dd4bf'];
+
+  // ===== 4. DADOS COMPLEMENTARES LOCAIS (não existentes em ApexData) =====
+  const COMUNICADOS = [
+    { id: 'c1', data: '14/10/2026', tag: 'Crédito', tone: 'emerald', icon: 'percent', titulo: 'Novo teto de juros do consignado INSS (CNPS)', texto: `O Conselho Nacional de Previdência Social aprovou novo teto para o consignado INSS. Tabela atualizada no sistema: ${A.pct(cnps.taxa * 100)} a.m. (valor simulado). Propostas pendentes devem ser recalculadas antes da formalização.` },
+    { id: 'c2', data: '10/10/2026', tag: 'PLD/FT', tone: 'rose', icon: 'shield-alert', titulo: 'Prazo final do Treinamento Anual PLD/FT: 31/10/2026', texto: `Curso obrigatório (Circ. BCB 3.978/2020). Adesão atual da rede: ${pc(D.rh.treinamentos[0].conclusao, 0)}. Pendências serão reportadas ao Comitê de Auditoria.` },
+    { id: 'c3', data: '08/10/2026', tag: 'Fraude', tone: 'amber', icon: 'phone-off', titulo: 'Alerta: golpe da falsa central e do falso funcionário', texto: 'Reforce aos clientes: o ApexBank nunca liga pedindo senha, token ou transferência para "conta segura". Casos devem ser registrados no SOC e no MED do Pix.' },
+    { id: 'c4', data: '01/10/2026', tag: 'INSS', tone: 'indigo', icon: 'scan-face', titulo: 'Prova de vida com biometria facial disponível em todas as agências', texto: 'O registro presencial agora usa captura biométrica com verificação de vivacidade (liveness). Priorize beneficiários 80+ (Lei 13.466/2017).' },
+    { id: 'c5', data: '29/09/2026', tag: 'Recomeçar', tone: 'sky', icon: 'heart-handshake', titulo: 'Mutirão Programa Recomeçar — 20 a 31/10', texto: 'Condições especiais de renegociação para clientes negativados, com preservação do mínimo existencial (Lei 14.181/2021).' },
+  ];
+
+  const AGENDA = {
+    diretoria: [['08:30', 'Comitê de Riscos — revisão do apetite a risco (RAS)'], ['10:00', 'Prévia de resultados 3T26 para o Conselho'], ['14:00', 'Reunião de supervisão com o Banco Central'], ['16:30', 'Deliberar operações acima de alçada']],
+    superintendente: [['09:00', 'Ritual de metas com gerentes gerais da Regional 01'], ['11:00', 'Visita à agência 0078 (em reforma)'], ['15:00', 'Comitê regional de crédito'], ['17:00', 'Revisar NPS da rede']],
+    gerente_geral: [['08:00', 'Abertura da agência e conferência do cofre'], ['09:30', 'Reunião de pipeline com a equipe'], ['13:00', 'Analisar propostas acima da alçada dos gerentes'], ['17:30', 'Fechamento do numerário com a supervisão']],
+    gerente_contas: [['09:00', 'Retornar contato a clientes sem interação há 30+ dias'], ['10:30', 'Visita cliente PJ — Roberta Mendes ME'], ['14:00', 'Analisar fila de propostas'], ['16:00', 'Revisar suitability da carteira Prime']],
+    gerente_inss: [['08:30', 'Mutirão de prova de vida (prioridade 80+)'], ['10:00', 'Atendimento de beneficiários BPC/LOAS'], ['14:00', 'Conferir averbações de consignado no Dataprev'], ['16:00', 'Revisar alertas antifraude']],
+    caixa: [['09:45', 'Abertura do caixa com a supervisão'], ['12:00', 'Sangria intermediária ao cofre'], ['15:00', 'Saques provisionados agendados'], ['16:15', 'Fechamento do caixa e conferência']],
+    atendimento: [['09:00', 'Ligar painel de senhas e totem'], ['10:00', 'Aberturas de conta agendadas (2)'], ['14:00', 'Orientar clientes sobre golpes do Pix'], ['15:30', 'Atualizações cadastrais pendentes']],
+    juridico: [['09:00', 'Audiência de conciliação JEC — proc. 1023344'], ['11:00', 'Responder ofícios SISBAJUD do dia'], ['14:30', 'Revisar provisões CPC 25 para o fechamento'], ['16:00', 'Comitê de privacidade (DPO)']],
+    compliance: [['08:30', 'Triar alertas PLD críticos'], ['10:00', 'Prazo SISCOAF das comunicações decididas ontem'], ['14:00', 'Revisão de cadastro PEP'], ['16:00', 'Testes de controles internos (Res. CMN 4.968/2021)']],
+    cobranca: [['09:00', 'Disparo de notificações prévias (CDC art. 43 §2º)'], ['11:00', 'Mesa de negociação — Programa Recomeçar'], ['14:00', 'Baixas de negativação pendentes (Súmula 548)'], ['16:00', 'Relatório de aging para a Diretoria']],
+    ti: [['08:00', 'Daily do SOC — revisão de alertas SIEM'], ['10:00', 'Janela de mudança: Autorizador de Cartões'], ['14:00', 'Teste do plano de continuidade (DR)'], ['17:00', 'Post-mortem INC-7781']],
+    ouvidoria: [['09:00', 'Priorizar demandas com SLA ≤ 2 dias'], ['11:00', 'Responder RDR do Banco Central'], ['15:00', 'Relatório semestral ao Conselho (Res. CMN 4.860/2020)'], ['16:30', 'Reunião com Jurídico — casos reincidentes']],
+    rh: [['09:00', 'Entrevistas — Analista PLD/FT'], ['11:00', 'Integração da turma de jovens aprendizes'], ['14:00', 'Cobrança do treinamento PLD/FT'], ['16:00', 'Renovações de certificação CPA']],
+    aprendiz: [['09:00', 'Apoio na recepção e emissão de senhas'], ['11:00', 'Curso teórico — módulo Educação Financeira'], ['14:00', 'Digitalização de documentos (back-office)'], ['15:00', 'Encerramento da jornada (6h — Lei 10.097/2000)']],
+  };
+
+  const RESP = {
+    assembleia: ['Aprovar as demonstrações financeiras anuais', 'Eleger e destituir membros do Conselho de Administração', 'Deliberar sobre dividendos, aumento de capital e reforma do Estatuto'],
+    conselho: ['Aprovar estratégia, orçamento e Declaração de Apetite a Riscos (RAS)', 'Eleger, avaliar e destituir a Diretoria Executiva', 'Supervisionar Ouvidoria, Compliance e Auditoria Interna'],
+    'conselho-fiscal': ['Fiscalizar os atos dos administradores', 'Opinar sobre o relatório anual da administração', 'Denunciar erros, fraudes ou crimes aos órgãos competentes'],
+    auditoria: ['Supervisionar auditorias interna e independente', 'Avaliar a qualidade das demonstrações contábeis', 'Reportar deficiências de controles ao Conselho'],
+    presidencia: ['Representar o banco perante reguladores e mercado', 'Coordenar a Diretoria Executiva', 'Executar o plano estratégico aprovado pelo Conselho'],
+    'dir-varejo': ['Gerir a rede de agências e canais de atendimento', 'Definir metas comerciais PF, PJ e INSS', 'Garantir conduta adequada na venda (Res. CMN 4.949/2021)'],
+    'dir-credito': ['Definir política de crédito e alçadas', 'Gerir consignado e Programa Recomeçar', 'Acompanhar inadimplência e provisões'],
+    'dir-riscos': ['Gerenciamento integrado de riscos (crédito, mercado, liquidez, operacional)', 'Política de PLD/FT e comunicações ao COAF', 'Testes de controles internos'],
+    'dir-juridico': ['Contencioso cível, trabalhista e previdenciário', 'Atendimento a ofícios judiciais (SISBAJUD)', 'Encarregado de dados (DPO) — LGPD'],
+    'dir-ti': ['Disponibilidade de Core Banking, Pix e cartões', 'Segurança cibernética e SOC 24x7', 'Plano de resposta a incidentes'],
+    'dir-financeira': ['Gestão de liquidez e tesouraria', 'Contabilidade e demonstrações (IFRS 9)', 'Relações com investidores (APXB3)'],
+    'dir-pessoas': ['Recrutamento, seleção e remuneração', 'Trilhas de treinamento e certificações', 'Programas de estágio e jovem aprendiz'],
+    ouvidoria: ['Atuar como última instância de atendimento', 'Responder em até 10 dias úteis', 'Reportar semestralmente ao Conselho'],
+    superintendencia: ['Coordenar 20–30 agências da região', 'Acompanhar metas, NPS e riscos regionais', 'Aprovar crédito acima da alçada das agências'],
+    'gerencia-geral': ['Responder pelo resultado e equipe da agência', 'Aprovar crédito até R$ 200 mil', 'Zelar pela segurança e numerário da agência'],
+    'gerencia-pf': ['Gerir carteira de pessoas físicas', 'Ofertar crédito responsável e investimentos adequados', 'Aprovar crédito até R$ 50 mil'],
+    'gerencia-pj': ['Gerir carteira de empresas', 'Capital de giro, cobrança e folha de pagamento', 'Análise de faturamento e garantias'],
+    'gerencia-inss': ['Atender aposentados, pensionistas e BPC/LOAS', 'Consignado com respeito à margem e às vedações do INSS', 'Prova de vida e prevenção de fraudes contra idosos'],
+    'gerencia-invest': ['Aplicar suitability (Res. CVM 30/2021)', 'Assessorar em CDB, Tesouro, fundos e previdência', 'Informar cobertura do FGC'],
+    supervisao: ['Abrir e fechar a tesouraria da agência', 'Controlar numerário, sangrias e cofre', 'Conferir diferenças de caixa'],
+    caixa: ['Depósitos, saques e pagamentos', 'Autenticação de operações', 'Registrar operações em espécie relevantes para PLD'],
+    atendimento: ['Recepção e gestão da fila de senhas', 'Abertura de contas e atualização cadastral', 'Orientação sobre canais digitais'],
+    backoffice: ['Conferência cadastral e documental', 'Compensação e digitalização', 'Guarda de documentos'],
+    seguranca: ['Vigilância armada e porta giratória', 'Controle de acesso ao cofre', 'Plano de segurança aprovado pela Polícia Federal'],
+    estagio: ['Atividades de aprendizagem supervisionada', 'Jornada compatível com estudos', 'Sem atendimento a operações de risco'],
+  };
+  const NORMAS = {
+    assembleia: ['Lei 6.404/1976'], conselho: ['Lei 6.404/1976', 'Lei 4.595/1964'], 'conselho-fiscal': ['Lei 6.404/1976'], auditoria: ['Res. CMN 4.910/2021', 'Res. CMN 4.966/2021'],
+    presidencia: ['Lei 4.595/1964', 'LC 179/2021'], 'dir-varejo': ['Res. CMN 4.949/2021', 'Res. CMN 3.919/2010', 'Lei 8.078/1990'], 'dir-credito': ['Lei 14.181/2021', 'Lei 10.820/2003', 'Lei 12.414/2011'],
+    'dir-riscos': ['Lei 9.613/1998', 'Circular BCB 3.978/2020', 'Res. CMN 4.968/2021'], 'dir-juridico': ['Lei 13.709/2018', 'LC 105/2001', 'Lei 8.078/1990'], 'dir-ti': ['Res. CMN 4.893/2021', 'Res. BCB 1/2020', 'Res. Conjunta 1/2020'],
+    'dir-financeira': ['Res. CMN 4.966/2021', 'Res. CMN 4.222/2013'], 'dir-pessoas': ['CLT, arts. 224 a 226', 'Lei 11.788/2008', 'Lei 10.097/2000'], ouvidoria: ['Res. CMN 4.860/2020', 'Decreto 11.034/2022'],
+    superintendencia: ['Res. CMN 4.949/2021'], 'gerencia-geral': ['Lei 7.102/1983', 'Res. CMN 4.949/2021'], 'gerencia-pf': ['Lei 14.181/2021', 'Res. CMN 4.949/2021'], 'gerencia-pj': ['Lei 12.414/2011'],
+    'gerencia-inss': ['Lei 14.431/2022', 'Lei 10.741/2003', 'Lei 8.742/1993'], 'gerencia-invest': ['Res. CVM 30/2021', 'Res. CMN 4.222/2013'], supervisao: ['Circular BCB 3.978/2020'],
+    caixa: ['Circular BCB 3.978/2020', 'Lei 9.613/1998'], atendimento: ['Lei 10.741/2003', 'Lei 13.146/2015', 'Lei 10.048/2000'], backoffice: ['LC 105/2001', 'Lei 13.709/2018'], seguranca: ['Lei 7.102/1983'], estagio: ['Lei 11.788/2008', 'Lei 10.097/2000'],
+  };
+  const normaInfo = (k) => D.legislacao.find((l) => l.norma.startsWith(k)) || { norma: k, titulo: '', resumo: '' };
+
+  // Benefícios previdenciários dos clientes INSS da carteira (o do demo vem de ApexData.inss)
+  const BENEF = {
+    '123.456.789-00': { nb: D.inss.nb, especie: D.inss.especie, dib: D.inss.dib, valorBruto: D.inss.valorBruto, descontos: clone(D.inss.descontos).map((d) => ({ ...d, tipo: /RMC/.test(d.desc) ? 'rmc' : /IRRF/.test(d.desc) ? 'ir' : 'emprestimo' })), provaVida: D.inss.provaDeVida, alfabetizado: true },
+    '231.554.120-09': { nb: '154.882.310-7', especie: '21 — Pensão por Morte (Urbana)', dib: '11/05/2019', valorBruto: 2100.00, descontos: [{ desc: 'Consignado Banco Fictício X', valor: 195.00, tipo: 'emprestimo' }], provaVida: 'Pendente — vence em 30/11/2026', alfabetizado: true },
+    '019.338.447-80': { nb: '133.019.447-2', especie: '42 — Aposentadoria por Tempo de Contribuição', dib: '02/02/2016', valorBruto: 2850.00, descontos: [{ desc: 'Consignado ApexBank (CT-2019-00441)', valor: 640.00, tipo: 'emprestimo' }, { desc: 'RMC — Cartão Consignado', valor: 142.50, tipo: 'rmc' }], provaVida: 'Realizada em 15/04/2026', alfabetizado: true },
+    '772.019.334-56': { nb: '712.334.019-5', especie: '88 — BPC/LOAS Pessoa Idosa', dib: '20/08/2026', valorBruto: D.regrasAposentadoria.salarioMinimo2026, descontos: [], provaVida: 'Não aplicável no 1º ano', alfabetizado: false },
+  };
+  // Renda considerada na análise de crédito (estimativa cadastral)
+  const RENDA = { 'Maria Aparecida Santos': 2100, 'João Pedro Oliveira': 1800, 'Roberta Mendes ME': 95000, 'Antônio Carlos Ribeiro': 2850, 'Carlos Silva': D.cliente.rendaMensal, 'Francisca das Chagas': 1630, 'Eduardo Tanaka': 85000 };
+
+  const SISTEMAS = [
+    { id: 'core', nome: 'Core Banking', icon: 'database', status: 'Operacional', uptime: 99.98, lat: 42 },
+    { id: 'spi', nome: 'SPI / Pix', icon: 'zap', status: 'Operacional', uptime: 99.99, lat: 180 },
+    { id: 'dict', nome: 'DICT (chaves Pix)', icon: 'key-round', status: 'Degradado', uptime: 99.71, lat: 610 },
+    { id: 'card', nome: 'Autorizador Cartões', icon: 'credit-card', status: 'Operacional', uptime: 99.97, lat: 95 },
+    { id: 'of', nome: 'Open Finance', icon: 'share-2', status: 'Operacional', uptime: 99.90, lat: 320 },
+    { id: 'ib', nome: 'Internet Banking', icon: 'globe', status: 'Operacional', uptime: 99.95, lat: 210 },
+    { id: 'mob', nome: 'App Mobile', icon: 'smartphone', status: 'Operacional', uptime: 99.93, lat: 230 },
+  ];
+
+  const CONTROLES = [
+    'Matriz de riscos e controles atualizada no semestre',
+    'Segregação de funções entre originação, aprovação e liquidação de crédito',
+    'Testes periódicos de efetividade dos controles (1ª e 2ª linhas)',
+    'Relatório de controles internos ao Conselho de Administração',
+    'Canal de denúncias com anonimato e não retaliação',
+    'Avaliação interna de risco PLD/FT (Circ. BCB 3.978/2020)',
+    'Monitoramento de operações com PEP e listas restritivas',
+    'Plano de ação para deficiências apontadas pela Auditoria',
+  ];
+  const PLANO_INCIDENTE = [
+    'Detecção e triagem do incidente (SIEM / SOC 24x7)',
+    'Classificação de severidade e acionamento do comitê de crise',
+    'Contenção (isolamento de ativos, bloqueio de IPs/credenciais)',
+    'Erradicação da causa raiz e recuperação dos serviços',
+    'Comunicação tempestiva ao Banco Central de incidentes relevantes',
+    'Avaliar notificação à ANPD e aos titulares (LGPD art. 48)',
+    'Registro de lições aprendidas e atualização do plano',
+    'Relatório anual de incidentes ao Conselho (Res. CMN 4.893/2021)',
+  ];
+  const DOCS_INSS = ['Documento oficial com foto (RG/CNH)', 'CPF', 'Extrato de pagamento do benefício (Meu INSS)', 'Comprovante de residência recente', 'Procuração pública (se representante legal)', 'Termo de curatela/tutela (se aplicável)', 'Assinatura a rogo com 2 testemunhas (se não alfabetizado)', 'Autorização expressa de desconto em benefício (consignado)'];
+  const ANTIFRAUDE = [
+    { t: 'Desbloqueio para consignado só após 90 dias da DIB', d: 'Benefícios novos ficam bloqueados para empréstimo; o desbloqueio só pode ser solicitado pelo próprio beneficiário após 90 dias da DIB (Instrução Normativa INSS).', icon: 'lock' },
+    { t: 'Ligação/oferta não solicitada é proibida', d: 'É vedado o assédio comercial e a oferta ativa de consignado por telefone a aposentados sem solicitação expressa (IN INSS e Estatuto ApexBank art. 40).', icon: 'phone-off' },
+    { t: 'Portabilidade e refinanciamento suspeitos', d: 'Desconfie de múltiplas portabilidades em curto período ou "troco" oferecido por terceiros.', icon: 'repeat' },
+    { t: 'Procurador recente com poderes amplos', d: 'Procurações com menos de 30 dias exigem dupla conferência e contato direto com o beneficiário.', icon: 'user-x' },
+    { t: 'Abuso financeiro contra pessoa idosa', d: 'Estatuto da Pessoa Idosa (Lei 10.741/2003, art. 102 e ss.): comunique indícios ao Compliance.', icon: 'shield-alert' },
+  ];
+  const CERTS = [
+    { nome: 'Marcos Antônio Lima', cert: 'CPA-20', validade: '15/03/2027' },
+    { nome: 'Juliana Prado', cert: 'CPA-10', validade: '02/11/2026' },
+    { nome: 'Patrícia Nogueira', cert: 'CEA', validade: '20/08/2028' },
+    { nome: 'Diego Ferreira', cert: 'CPA-10', validade: '30/09/2026' },
+    { nome: 'Ricardo Moura', cert: 'CPA-20', validade: '11/06/2029' },
+    { nome: 'Aline Costa', cert: 'CPA-10', validade: '05/01/2027' },
+  ];
+  const SANCOES = ['VLADIMIR K. OBLONSKY', 'ALI HASSAN ZAREF', 'EMPRESA FANTASMA OFFSHORE LTD', 'JOSE FICTICIO DA SILVA'];
+  const PEPS = ['Cliente #70011', 'DEPUTADO FULANO DE TAL', 'PREFEITO BELTRANO SOUZA'];
+
+  // ===== 5. ESTADO GLOBAL ================================================
+  const now0 = new Date();
+  const S = {
+    user: null, mod: 'visao', session: {},
+    audit: [],
+    accessLog: [
+      { ts: fmtDT(new Date(now0 - 3600e3 * 5)), user: 'F3305 — Diego Ferreira', ip: '10.1.0.33', evento: 'Login', res: 'Sucesso' },
+      { ts: fmtDT(new Date(now0 - 3600e3 * 4)), user: 'F9999 — (desconhecido)', ip: '187.44.12.9', evento: 'Login', res: 'Falha — matrícula inexistente' },
+      { ts: fmtDT(new Date(now0 - 3600e3 * 3)), user: 'F2210 — Marcos Antônio Lima', ip: '10.1.0.21', evento: 'Consulta cadastro (CPF 019.***.***-80)', res: 'Sucesso' },
+      { ts: fmtDT(new Date(now0 - 3600e3 * 1)), user: 'F4400 — Renato Okada', ip: '10.9.2.14', evento: 'Acesso console SIEM', res: 'Sucesso (MFA)' },
+    ],
+    clientes: clone(D.clientesCarteira).map((c) => ({ ...c, bloqueada: false, contatos: [], email: '', telefone: '', renda: RENDA[c.nome] || 0 })),
+    propostas: clone(D.propostasCredito).map((p) => ({ ...p, historico: [] })),
+    fila: clone(D.filaSenhas).map((s, i) => ({ ...s, chegada: i })),
+    senhas: { chamando: null, atendidos: [], cont: { N: 15, P: 2, S: 2, G: 3 } },
+    alertas: clone(D.alertasPLD).map((a) => ({ ...a, historico: [] })),
+    coaf: [],
+    processos: clone(D.processosJuridicos).map((p) => ({ ...p, andamentos: [{ data: '—', texto: `Distribuição / instauração do processo (${p.tipo})` }, { data: '—', texto: `Fase atual: ${p.fase}` }] })),
+    reclamacoes: clone(D.reclamacoes).map((r) => ({ ...r, resposta: '', deadline: r.status === 'Resolvida' ? null : (/SAC/.test(r.canal) ? new Date(new Date().setHours(18, 0, 0, 0) + r.prazo * 864e5) : new Date(addBiz(new Date(), r.prazo).setHours(18, 0, 0, 0))) })),
+    devedores: clone(D.devedores).map((d) => ({ ...d, notificado: d.negativado, notificadoEm: d.negativado ? 'anterior à negativação' : null, bureaus: d.negativado ? ['Serasa'] : [], acordo: null, baixa: null, repactuacao: null })),
+    incidentes: clone(D.incidentesTI),
+    rh: clone(D.rh),
+    agencias: clone(D.agencias).map((a) => ({ ...a, visitas: [] })),
+    caixa: { aberto: false, notas: {}, moedas: 0, inicial: 0, entradas: 0, saidas: 0, ops: [], cofre: 0, fechamentos: [], abertoEm: null },
+    inss: { sel: null, provas: [], docs: [], alertas: [], propostas: [] },
+    lgpd: [
+      { id: 'LGPD-0311', tipo: 'Acesso aos dados', titular: 'Clara Moreira', aberta: fmtD(new Date(now0 - 864e5 * 9)), abertaTs: +now0 - 864e5 * 9, status: 'Aberta', resposta: '' },
+      { id: 'LGPD-0312', tipo: 'Eliminação', titular: 'Lucas F. Gomes', aberta: fmtD(new Date(now0 - 864e5 * 13)), abertaTs: +now0 - 864e5 * 13, status: 'Aberta', resposta: '' },
+      { id: 'LGPD-0313', tipo: 'Correção', titular: 'João Pedro Oliveira', aberta: fmtD(new Date(now0 - 864e5 * 2)), abertaTs: +now0 - 864e5 * 2, status: 'Aberta', resposta: '' },
+    ],
+    bloqueios: [],
+    controles: [0, 1, 4],
+    tiPlano: [0, 1, 2],
+    ponto: {},
+    agendaDone: {}, agendaExtra: {}, lidos: [],
+    ti: { lat: { labels: [], spi: [], dict: [], core: [] }, soc: 18432, sys: clone(SISTEMAS) },
+    ui: { cliQ: '', cliF: 'todos', credTab: 'fila', inssTab: 'benef', jurTab: 'proc', jurTipo: 'Todos', agCidade: 'Todas', cobF: 'todos' },
+    seq: { prop: 55124, al: 9005, conta: 90311, lgpd: 314, inc: 7783, ouv: 10214, aut: 1 },
+  };
+  // seed latency series
+  for (let i = 19; i >= 0; i--) {
+    S.ti.lat.labels.push(new Date(Date.now() - i * 2000).toLocaleTimeString('pt-BR'));
+    S.ti.lat.spi.push(rnd(150, 230)); S.ti.lat.dict.push(rnd(480, 700)); S.ti.lat.core.push(rnd(30, 60));
+  }
+
+  // ===== 6. AUDITORIA ====================================================
+  function audit(acao, detalhe = '') {
+    if (!S.user) return;
+    S.audit.unshift({ ts: fmtDT(), mat: S.user.matricula, user: S.user.nome, perfil: S.user.perfil, mod: MODS[S.mod]?.label || S.mod, acao, detalhe: String(detalhe) });
+    const b = $('#auditCount'); if (b) { b.textContent = S.audit.length; b.classList.remove('hidden'); }
+  }
+  App.openAudit = (onlyMe = false) => {
+    closeModals();
+    const list = onlyMe ? S.audit.filter((a) => a.mat === S.user.matricula) : S.audit;
+    A.modal({
+      title: '<span class="flex items-center gap-2"><i data-lucide="scroll-text" class="w-5 h-5 text-amber-400"></i>Trilha de auditoria</span>', wide: true,
+      body: `
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="text-[11px] text-slate-400">Registros imutáveis desta sessão de simulação. Ações sensíveis exigem justificativa (LC 105/2001, LGPD art. 37).</p>
+          <div class="flex gap-1">
+            <button class="btn-sm ${onlyMe ? 'btn-ghost' : 'btn-primary'}" onclick="App.openAudit(false)">Todos</button>
+            <button class="btn-sm ${onlyMe ? 'btn-primary' : 'btn-ghost'}" onclick="App.openAudit(true)">Apenas eu</button>
+          </div>
+        </div>
+        <div class="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+          ${list.length ? list.map((a) => `
+            <div class="p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-semibold text-white">${esc(a.acao)}</span>
+                <span class="font-mono text-[10px] text-slate-500">${esc(a.ts)}</span>
+              </div>
+              ${a.detalhe ? `<p class="text-[11px] text-slate-400 mt-1">${esc(a.detalhe)}</p>` : ''}
+              <div class="flex flex-wrap gap-1.5 mt-2">${chip(esc(a.mat + ' — ' + a.user), 'amber', 'user')}${chip(esc(a.mod), 'slate', 'layers')}</div>
+            </div>`).join('') : '<p class="text-center text-slate-500 py-8">Nenhuma ação registrada ainda.</p>'}
+        </div>`,
+    });
+  };
